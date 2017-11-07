@@ -41,8 +41,8 @@ def preprocess(dataset):
         if img.mode!='L':
             img=img.convert('L')
         img=np.array(img.resize((48,48)),dtype=np.float32)
-        kernel=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(3,3))
-        img=cv2.erode(img,kernel,iterations=2)#对图片进行膨胀处理
+        #kernel=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(3,3))
+        #img=cv2.erode(img,kernel,iterations=2)#对图片进行膨胀处理
         IMG_set[count]=img
         Label.append(categ)
     #随机展示图片集内图片
@@ -63,7 +63,7 @@ Tr_img=np.reshape(Tr_img,(-1,48*48))#-1代表自适应未指定值
 Tr_lab=np.array(Tr_lab,dtype=np.uint8)
 #定义参数
 IMAGE_WIDTH,IMAGE_HEIGHT=48,48
-lr_rate=0.005
+lr_rate=0.0001
 split_param=0.2
 #对标签进行多维映射   
 Tr_lab= (np.arange(20) == Tr_lab[:,None]).astype(np.float32) 
@@ -153,31 +153,61 @@ def handmade_CNN(w_alpha=0.01,b_alpha=0.05):
     w_out=tf.Variable(w_alpha*tf.random_normal([1024,20]))
     b_out=tf.Variable(b_alpha*tf.random_normal([20]))
     output=tf.matmul(dense,w_out)+b_out
-    output=tf.nn.softmax(output)
-    return output
+    l2_loss=tf.nn.l2_loss(w_c1)+tf.nn.l2_loss(w_c2)+tf.nn.l2_loss(w_c3)+
+            tf.nn.l2_loss(w_c4)+tf.nn.l2_loss(w_fully)+tf.nn.l2_loss(w_out)
+    return output,l2_loss
 
-def train_handmade_CNN():
-    output=handmade_CNN()
+def main(alpha):
+    sess.run(tf.global_variables_initializer())
+    output,l2_loss=handmade_CNN()
     #损失
-    loss=tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=Y,logits=output))
-    #优化器
+    loss=tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=Y,logits=output))+
+                        alpha*l2_loss
     optimizer=tf.train.AdamOptimizer(learning_rate=lr_base).minimize(loss)
-    correction=tf.equal(tf.argmax(Y,1),tf.argmax(output))
+    correction=tf.equal(tf.argmax(Y,1),tf.argmax(output,1))
     accuracy=tf.reduce_mean(tf.cast(correction,tf.float32))
     
     saver=tf.train.Saver()
     
     init=tf.global_variables_initializer()
     sess.run(init)
-    
-    for i in range(200):
-        batch_x_tr, batch_y_tr = get_batch(x_train,y_train,batch_size=200)
-        train_accuracy = accuracy.eval(feed_dict={X:batch_x_tr,Y:batch_y_tr,lr_base:lr_rate,
-                        keep_prob:0.5,train_phase:True})
-        if i%20==0:
+    step=0
+    while True:
+        batch_x_tr, batch_y_tr = get_batch(x_train,y_train,batch_size=100)
+        #optimizer.run(feed_dict={X:batch_x_tr,Y:batch_y_tr,lr_base:lr_rate,
+        #                keep_prob:0.8,train_phase:True})
+        _, loss_ = sess.run([optimizer, loss], feed_dict={X: batch_x_tr, Y: batch_y_tr,
+                            lr_base:lr_rate,keep_prob: 0.8, train_phase:True})
+        print("循环次数：%d, Loss: %f" %(step,loss_))
+        if step%100==0 and step!=0:
             batch_x_va, batch_y_va = get_batch(x_valid,y_valid,batch_size=100)
-            acc=accuracy.run(feed_dict={X:x_valid,Y:y_valid,lr_base:lr_rate,
-                                             keep_prob:0.5,train_phase:False})
-            print("第{0}步,训练精准率为：{1}".format(i,acc))
-
-train_handmade_CNN()    
+            valid_accuracy = accuracy.eval(feed_dict={X:batch_x_va,Y:batch_y_va,
+                                                      lr_base:lr_rate,keep_prob:1,
+                                                      train_phase:True})
+            print("第{0}步,训练精准率为：{1:%}".format(step,valid_accuracy))
+            if valid_accuracy>0.95:
+                #saver.save(sess,"C:/Anaconda/image/CNN.ckpt",global_step=step)
+                break
+        step+=1
+    
+if __name__=="__main__":
+    main() 
+  
+'''
+#测试
+for i in types:
+    ID=os.listdir(os.path.join(teimg_dir,i))
+    length=len(ID)
+    num=np.random.randint(0,length)
+    imgID=ID[num]
+    img=Image.open(os.path.join(teimg_dir,i,ID[num]))
+    if img.mode!='L':
+        img=img.convert('L')
+    img=np.array(img.resize((48,48)),dtype=np.float32)
+    img=np.reshape(img,[-1,48*48])
+    with tf.Session() as sess:
+        output=handmade_CNN() 
+        output=tf.nn.softmax(output)
+        res=sess.run(output, feed_dict={X:img})
+        res=np.argmax(res,1)
+'''       
