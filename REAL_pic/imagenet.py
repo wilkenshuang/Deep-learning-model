@@ -16,6 +16,7 @@ import pandas as pd
 
 trimg_dir='C:/Anaconda/image/train'
 teimg_dir='C:/Anaconda/image/test'
+model_path="C:/Anaconda/image/model.ckpt"
 
 Type={'0':0,'1':1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,
        '9':9,'A':10,'B':11,'C':12,'D':13,'E':14,'F':15,'G':16,'H':17,
@@ -153,15 +154,15 @@ def handmade_CNN(w_alpha=0.01,b_alpha=0.05):
     w_out=tf.Variable(w_alpha*tf.random_normal([1024,20]))
     b_out=tf.Variable(b_alpha*tf.random_normal([20]))
     output=tf.matmul(dense,w_out)+b_out
-    l2_loss=tf.nn.l2_loss(w_c1)+tf.nn.l2_loss(w_c2)+tf.nn.l2_loss(w_c3)+
+    l2_loss=tf.nn.l2_loss(w_c1)+tf.nn.l2_loss(w_c2)+tf.nn.l2_loss(w_c3)+\
             tf.nn.l2_loss(w_c4)+tf.nn.l2_loss(w_fully)+tf.nn.l2_loss(w_out)
     return output,l2_loss
 
-def main(alpha):
+def train(alpha=0.05):
     sess.run(tf.global_variables_initializer())
     output,l2_loss=handmade_CNN()
     #损失
-    loss=tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=Y,logits=output))+
+    loss=tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=Y,logits=output))+\
                         alpha*l2_loss
     optimizer=tf.train.AdamOptimizer(learning_rate=lr_base).minimize(loss)
     correction=tf.equal(tf.argmax(Y,1),tf.argmax(output,1))
@@ -186,12 +187,27 @@ def main(alpha):
                                                       train_phase:True})
             print("第{0}步,训练精准率为：{1:%}".format(step,valid_accuracy))
             if valid_accuracy>0.95:
-                #saver.save(sess,"C:/Anaconda/image/CNN.ckpt",global_step=step)
+                saver.save(sess,"C:/Anaconda/image/model.ckpt",global_step=step)
                 break
         step+=1
+
+def test(inputs,alpha=0.5,model_path):
+    img=inputs
+    init=tf.global_variables_initializer()
+    with tf.Session() as sess:
+        sess.run(init)
+        ckpt = tf.train.get_checkpoint_state(model_dir)
+        if ckpt and ckpt.model_checkpoint_path:
+            global_step = ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1]
+            saver.restore(sess, ckpt.model_checkpoint_path)
+            print('Loading success, global_step is %s' % global_step)
+        else:
+            print('No checkpoint file found')
+        
+    img_test=np.array(inputs.resize((48,48)),dtype=np.float32)
     
-if __name__=="__main__":
-    main() 
+    
+test()
   
 '''
 #测试
