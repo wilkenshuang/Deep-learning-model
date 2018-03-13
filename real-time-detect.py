@@ -51,7 +51,7 @@ print(size)
 
 fourcc = cv2.VideoWriter_fourcc('M','J','P','G')#DIVX,XVID, MJPG, X264, WMV1, WMV2
 out = cv2.VideoWriter('D:/opencv-video/face.avi',fourcc,15,(size[1],size[0]))
-'''
+
 while(True):
     #一帧一帧抓取图像
     ret,frame=cap.read()
@@ -85,7 +85,6 @@ while(True):
 #decimg=cv2.imdecode(data,1) 
 #cv2.imwrite('./frame.jpg',decimg)
 '''
-
 while(True): 
     ret,frame=cap.read()
     cv2.imshow('frame',frame)
@@ -94,7 +93,7 @@ while(True):
     if ch==ord('q'):
         out.write(frame)
         break
-    
+'''   
 cap.release()
 out.release()
 cv2.destroyAllWindows()
